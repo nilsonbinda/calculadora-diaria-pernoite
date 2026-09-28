@@ -69,15 +69,11 @@ function renderOvernightFields(depDate, arrDate) {
     const container = document.getElementById('dynamicOvernightsContainer');
     container.innerHTML = '';
     
-    // Começamos a perguntar a partir do dia seguinte ao da saída
+    // CORREÇÃO: O loop agora começa no próprio dia da saída, sem pular 1 dia
     let current = new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate());
-    current.setDate(current.getDate() + 1);
-    
     let end = new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate());
-    let hasDays = false;
     
     while (current <= end) {
-        hasDays = true;
         const dateStr = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'});
         const shortDate = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
         
@@ -100,10 +96,6 @@ function renderOvernightFields(depDate, arrDate) {
         container.appendChild(div);
         
         current.setDate(current.getDate() + 1);
-    }
-    
-    if (!hasDays) {
-        container.innerHTML = '<p class="text-sm text-slate-500 italic">Viagem no mesmo dia. Não há dias intermédios para pernoite.</p>';
     }
 }
 
@@ -136,6 +128,15 @@ function calculate() {
     const formatCurrency = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const formatDate = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const formatTime = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const totalHours = (arrDate - depDate) / (1000 * 60 * 60);
+    const hInt = Math.floor(totalHours);
+    const mInt = Math.round((totalHours - hInt) * 60);
+
+    // Preenche as informações do cabeçalho do Recibo
+    document.getElementById('receiptDep').innerText = `${formatDate(depDate)} às ${formatTime(depDate)}`;
+    document.getElementById('receiptArr').innerText = `${formatDate(arrDate)} às ${formatTime(arrDate)}`;
+    document.getElementById('receiptDur').innerText = `${hInt}h ${mInt}min`;
 
     // 1. CÁLCULO DE ALIMENTAÇÃO (JANTA)
     const mealBreakdown = [];
@@ -196,10 +197,6 @@ function calculate() {
     const overnightSubtotal = overnightCount * UNIT_VALUE;
     const grandTotal = mealSubtotal + overnightSubtotal;
 
-    const totalHours = (arrDate - depDate) / (1000 * 60 * 60);
-    const hInt = Math.floor(totalHours);
-    const mInt = Math.round((totalHours - hInt) * 60);
-
     // 3. RENDERIZAÇÃO DE RESULTADOS
     document.getElementById('mealTotalText').innerText = `${mealCount}x = ${formatCurrency(mealSubtotal)}`;
     const mealListEl = document.getElementById('mealBreakdownList');
@@ -229,58 +226,37 @@ function calculate() {
     setTimeout(() => {
         document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 100);
-
-    window.lastCalculationSummary = {
-        depFormatted: `${formatDate(depDate)} às ${formatTime(depDate)}`,
-        arrFormatted: `${formatDate(arrDate)} às ${formatTime(arrDate)}`,
-        durationText: `${hInt}h ${mInt}min`,
-        mealCount,
-        mealSub: mealSubtotal,
-        mealBreakdown: mealBreakdown,
-        overnightCount,
-        overnightSub: overnightSubtotal,
-        overnightBreakdown: overnightBreakdown,
-        total: grandTotal
-    };
 }
 
-function copyWhatsAppReport() {
-    const s = window.lastCalculationSummary;
-    if (!s) return;
+// Nova função que captura o recibo e baixa em formato PNG
+function downloadReceipt() {
+    const receiptElement = document.getElementById('receiptContent');
+    const btn = document.getElementById('downloadBtn');
+    const originalText = btn.innerHTML;
+    
+    // Feedback visual de carregamento
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-2xl"></i><span>Gerando Imagem...</span>';
+    btn.disabled = true;
 
-    const formatCurrency = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-    let text = `*RESUMO DE DIÁRIAS E REEMBOLSO*\n`;
-    text += `-----------------------------------\n`;
-    text += `🛫 *Saída:* ${s.depFormatted}\n`;
-    text += `🛬 *Chegada:* ${s.arrFormatted}\n`;
-    text += `⏱️ *Duração Total:* ${s.durationText}\n`;
-    text += `-----------------------------------\n\n`;
-
-    text += `🍽️ *Alimentação (Janta):* ${s.mealCount}x (${formatCurrency(s.mealSub)})\n`;
-    s.mealBreakdown.forEach(item => {
-        if (item.earned) text += `   • ${item.date}: ${item.reason}\n`;
-    });
-
-    text += `\n🛌 *Pernoites:* ${s.overnightCount}x (${formatCurrency(s.overnightSub)})\n`;
-    s.overnightBreakdown.forEach(item => {
-        text += `   • ${item.date} ${item.time}\n`;
-    });
-
-    text += `-----------------------------------\n`;
-    text += `💰 *VALOR TOTAL:* ${formatCurrency(s.total)}\n`;
-    text += `-----------------------------------\n`;
-    text += `_Calculado via Calculadora de Pernoite/Alimentação_`;
-
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(() => alert('Resumo copiado para o WhatsApp com sucesso! Cole na conversa.'));
-    } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        alert('Resumo copiado para o WhatsApp com sucesso! Cole na conversa.');
-    }
+    // Atraso curto para permitir que o botão atualize antes de congelar a interface
+    setTimeout(() => {
+        html2canvas(receiptElement, { 
+            scale: 2, // Melhora a resolução para impressão/leitura no telemóvel
+            backgroundColor: '#ffffff'
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `recibo_diarias_${new Date().getTime()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            // Restaura o botão
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }).catch(err => {
+            console.error("Erro ao gerar imagem:", err);
+            alert("Não foi possível gerar a imagem. Tente novamente.");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    }, 150);
 }
