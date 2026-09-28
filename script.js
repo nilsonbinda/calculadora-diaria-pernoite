@@ -1,226 +1,286 @@
+const UNIT_VALUE = 78.14;
 
-    const UNIT_VALUE = 78.14;
+window.addEventListener('DOMContentLoaded', () => {
+    setInitialDates();
+});
 
-    window.addEventListener('DOMContentLoaded', () => {
-        setInitialDates();
+function setInitialDates() {
+    const depEl = document.getElementById('departureDateTime');
+    const arrEl = document.getElementById('arrivalDateTime');
+    if (!depEl || !arrEl) return;
+
+    const formatForInput = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:00`;
+    };
+
+    const dep = new Date();
+    dep.setHours(12, 0, 0, 0);
+    
+    const arr = new Date(dep);
+    arr.setDate(arr.getDate() + 1);
+    arr.setHours(14, 0, 0, 0);
+
+    depEl.value = formatForInput(dep);
+    arrEl.value = formatForInput(arr);
+
+    onDateInputChange();
+}
+
+function onDateInputChange() {
+    const depEl = document.getElementById('departureDateTime');
+    const arrEl = document.getElementById('arrivalDateTime');
+    if (!depEl || !arrEl) return;
+
+    const depVal = depEl.value;
+    const arrVal = arrEl.value;
+    if (!depVal || !arrVal) return;
+
+    const depDate = new Date(depVal);
+    const arrDate = new Date(arrVal);
+
+    const durationCard = document.getElementById('durationCard');
+
+    if (arrDate <= depDate) {
+        if (durationCard) durationCard.classList.add('hidden');
+        document.getElementById('dynamicOvernightsContainer').innerHTML = '<p class="text-sm text-red-500">Data de chegada inválida.</p>';
+        return;
+    }
+
+    const diffMs = arrDate - depDate;
+    const totalHours = diffMs / (1000 * 60 * 60);
+
+    const hoursInt = Math.floor(totalHours);
+    const minsInt = Math.round((totalHours - hoursInt) * 60);
+
+    const tripDurationText = document.getElementById('tripDurationText');
+    if (tripDurationText) {
+        tripDurationText.innerText = `${hoursInt}h ${minsInt}min`;
+    }
+    if (durationCard) durationCard.classList.remove('hidden');
+
+    renderOvernightFields(depDate, arrDate);
+}
+
+function renderOvernightFields(depDate, arrDate) {
+    const container = document.getElementById('dynamicOvernightsContainer');
+    container.innerHTML = '';
+    
+    // Começamos a perguntar a partir do dia seguinte ao da saída
+    let current = new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate());
+    current.setDate(current.getDate() + 1);
+    
+    let end = new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate());
+    let hasDays = false;
+    
+    while (current <= end) {
+        hasDays = true;
+        const dateStr = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'});
+        const shortDate = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+        
+        const div = document.createElement('div');
+        div.className = "flex flex-col sm:flex-row sm:items-center justify-between bg-white border-2 border-slate-200 rounded-xl p-3 gap-3";
+        
+        div.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-calendar-day text-indigo-500"></i>
+                <span class="font-bold text-slate-800">${shortDate}</span>
+            </div>
+            <div class="flex items-center space-x-3 w-full sm:w-auto">
+                <select class="w-full sm:w-auto bg-slate-50 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg focus:ring-brand-500 focus:border-brand-500 p-2 cursor-pointer transition-colors" onchange="toggleTimeInput(this)">
+                    <option value="nao_teve" selected>Não teve</option>
+                    <option value="teve">Registrar Pernoite</option>
+                </select>
+                <input type="time" class="overnight-time hidden bg-white border border-slate-300 text-slate-900 text-sm font-bold rounded-lg focus:ring-brand-500 focus:border-brand-500 p-2 w-28" data-date="${dateStr}">
+            </div>
+        `;
+        container.appendChild(div);
+        
+        current.setDate(current.getDate() + 1);
+    }
+    
+    if (!hasDays) {
+        container.innerHTML = '<p class="text-sm text-slate-500 italic">Viagem no mesmo dia. Não há dias intermédios para pernoite.</p>';
+    }
+}
+
+function toggleTimeInput(selectElement) {
+    const timeInput = selectElement.nextElementSibling;
+    if (selectElement.value === 'teve') {
+        timeInput.classList.remove('hidden');
+        timeInput.required = true;
+    } else {
+        timeInput.classList.add('hidden');
+        timeInput.required = false;
+        timeInput.value = '';
+    }
+}
+
+function calculate() {
+    const depVal = document.getElementById('departureDateTime').value;
+    const arrVal = document.getElementById('arrivalDateTime').value;
+
+    if (!depVal || !arrVal) return;
+
+    const depDate = new Date(depVal);
+    const arrDate = new Date(arrVal);
+
+    if (arrDate <= depDate) {
+        alert("A data de chegada deve ser posterior à data de saída!");
+        return;
+    }
+
+    const formatCurrency = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const formatDate = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const formatTime = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    // 1. CÁLCULO DE ALIMENTAÇÃO (JANTA)
+    const mealBreakdown = [];
+    let mealCount = 0;
+
+    let currentMealDate = new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate());
+    const endMealDate = new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate());
+
+    while (currentMealDate <= endMealDate) {
+        const dateStr = formatDate(currentMealDate);
+        const isStart = currentMealDate.getTime() === (new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate())).getTime();
+        const isEnd = currentMealDate.getTime() === (new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate())).getTime();
+
+        if (isStart && isEnd) {
+            const depHour = depDate.getHours();
+            const arrHour = arrDate.getHours();
+            if (depHour <= 19 && arrHour >= 22) {
+                mealCount++;
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (<= 19h) e Chegada às ${formatTime(arrDate)} (>= 22h)`, earned: true });
+            } else {
+                mealBreakdown.push({ date: dateStr, reason: `Não atendeu janela (Saída ${formatTime(depDate)} / Chegada ${formatTime(arrDate)})`, earned: false });
+            }
+        } else if (isStart) {
+            if (depDate.getHours() <= 19) {
+                mealCount++;
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (<= 19h)`, earned: true });
+            } else {
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (Após 19h)`, earned: false });
+            }
+        } else if (isEnd) {
+            if (arrDate.getHours() >= 22) {
+                mealCount++;
+                mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (>= 22h)`, earned: true });
+            } else {
+                mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (Antes das 22h)`, earned: false });
+            }
+        } else {
+            mealCount++;
+            mealBreakdown.push({ date: dateStr, reason: `Dia completo em viagem`, earned: true });
+        }
+        currentMealDate.setDate(currentMealDate.getDate() + 1);
+    }
+
+    // 2. CÁLCULO DE PERNOITES (Lido diretamente do DOM)
+    let overnightCount = 0;
+    const overnightBreakdown = [];
+    const timeInputs = document.querySelectorAll('.overnight-time');
+    
+    timeInputs.forEach(input => {
+        if (!input.classList.contains('hidden')) {
+            overnightCount++;
+            const timeValue = input.value ? `às ${input.value}` : '(Horário não informado)';
+            overnightBreakdown.push({ date: input.dataset.date, time: timeValue });
+        }
     });
 
-    function setInitialDates() {
-        const depEl = document.getElementById('departureDateTime');
-        const arrEl = document.getElementById('arrivalDateTime');
-        if (!depEl || !arrEl) return;
+    const mealSubtotal = mealCount * UNIT_VALUE;
+    const overnightSubtotal = overnightCount * UNIT_VALUE;
+    const grandTotal = mealSubtotal + overnightSubtotal;
 
-        const formatForInput = (d) => {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            const hours = String(d.getHours()).padStart(2, '0');
-            return `${year}-${month}-${day}T${hours}:00`;
-        };
+    const totalHours = (arrDate - depDate) / (1000 * 60 * 60);
+    const hInt = Math.floor(totalHours);
+    const mInt = Math.round((totalHours - hInt) * 60);
 
-        const dep = new Date();
-        dep.setHours(12, 0, 0, 0);
-        
-        const arr = new Date(dep);
-        arr.setDate(arr.getDate() + 1);
-        arr.setHours(12, 0, 0, 0);
+    // 3. RENDERIZAÇÃO DE RESULTADOS
+    document.getElementById('mealTotalText').innerText = `${mealCount}x = ${formatCurrency(mealSubtotal)}`;
+    const mealListEl = document.getElementById('mealBreakdownList');
+    mealListEl.innerHTML = '';
+    mealBreakdown.forEach(item => {
+        const div = document.createElement('div');
+        div.className = "flex items-start space-x-2";
+        div.innerHTML = item.earned 
+            ? `<i class="fa-solid fa-circle-check text-emerald-500 mt-1 text-base"></i> <span><strong>${item.date}:</strong> ${item.reason}</span>`
+            : `<i class="fa-solid fa-circle-xmark text-slate-300 mt-1 text-base"></i> <span class="text-slate-500"><strong>${item.date}:</strong> ${item.reason}</span>`;
+        mealListEl.appendChild(div);
+    });
 
-        depEl.value = formatForInput(dep);
-        arrEl.value = formatForInput(arr);
-
-        onDateInputChange();
+    document.getElementById('overnightTotalText').innerText = `${overnightCount}x = ${formatCurrency(overnightSubtotal)}`;
+    
+    const overnightTextEl = document.getElementById('overnightBreakdownText');
+    if (overnightCount > 0) {
+        let details = overnightBreakdown.map(item => `<strong>${item.date}</strong> ${item.time}`).join(' | ');
+        overnightTextEl.innerHTML = `${overnightCount} pernoite(s) registada(s): <br><span class="text-indigo-600 mt-1 block">${details}</span>`;
+    } else {
+        overnightTextEl.innerText = "Nenhuma pernoite registada para esta viagem.";
     }
 
-    function onDateInputChange() {
-        const depEl = document.getElementById('departureDateTime');
-        const arrEl = document.getElementById('arrivalDateTime');
-        if (!depEl || !arrEl) return;
+    document.getElementById('grandTotalText').innerText = formatCurrency(grandTotal);
+    document.getElementById('resultsCard').classList.remove('hidden');
 
-        const depVal = depEl.value;
-        const arrVal = arrEl.value;
-        if (!depVal || !arrVal) return;
+    setTimeout(() => {
+        document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
 
-        const depDate = new Date(depVal);
-        const arrDate = new Date(arrVal);
+    window.lastCalculationSummary = {
+        depFormatted: `${formatDate(depDate)} às ${formatTime(depDate)}`,
+        arrFormatted: `${formatDate(arrDate)} às ${formatTime(arrDate)}`,
+        durationText: `${hInt}h ${mInt}min`,
+        mealCount,
+        mealSub: mealSubtotal,
+        mealBreakdown: mealBreakdown,
+        overnightCount,
+        overnightSub: overnightSubtotal,
+        overnightBreakdown: overnightBreakdown,
+        total: grandTotal
+    };
+}
 
-        const suggestedBadge = document.getElementById('suggestedBadge');
-        const durationCard = document.getElementById('durationCard');
+function copyWhatsAppReport() {
+    const s = window.lastCalculationSummary;
+    if (!s) return;
 
-        if (arrDate <= depDate) {
-            if (suggestedBadge) suggestedBadge.classList.add('hidden');
-            if (durationCard) durationCard.classList.add('hidden');
-            return;
-        }
+    const formatCurrency = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        const diffMs = arrDate - depDate;
-        const totalHours = diffMs / (1000 * 60 * 60);
+    let text = `*RESUMO DE DIÁRIAS E REEMBOLSO*\n`;
+    text += `-----------------------------------\n`;
+    text += `🛫 *Saída:* ${s.depFormatted}\n`;
+    text += `🛬 *Chegada:* ${s.arrFormatted}\n`;
+    text += `⏱️ *Duração Total:* ${s.durationText}\n`;
+    text += `-----------------------------------\n\n`;
 
-        const hoursInt = Math.floor(totalHours);
-        const minsInt = Math.round((totalHours - hoursInt) * 60);
+    text += `🍽️ *Alimentação (Janta):* ${s.mealCount}x (${formatCurrency(s.mealSub)})\n`;
+    s.mealBreakdown.forEach(item => {
+        if (item.earned) text += `   • ${item.date}: ${item.reason}\n`;
+    });
 
-        const tripDurationText = document.getElementById('tripDurationText');
-        if (tripDurationText) {
-            tripDurationText.innerText = `${hoursInt}h ${minsInt}min`;
-        }
-        if (durationCard) durationCard.classList.remove('hidden');
+    text += `\n🛌 *Pernoites:* ${s.overnightCount}x (${formatCurrency(s.overnightSub)})\n`;
+    s.overnightBreakdown.forEach(item => {
+        text += `   • ${item.date} ${item.time}\n`;
+    });
 
-        let suggestedOvernights = 0;
-        if (totalHours >= 25) {
-            // Conta apenas os ciclos completos de 25h
-            suggestedOvernights = Math.floor(totalHours / 25);
-        } else if (totalHours > 14) {
-            // Se a viagem total for menor que 25h mas maior que 14h, dá 1 pernoite
-            suggestedOvernights = 1;
-        }
+    text += `-----------------------------------\n`;
+    text += `💰 *VALOR TOTAL:* ${formatCurrency(s.total)}\n`;
+    text += `-----------------------------------\n`;
+    text += `_Calculado via Calculadora de Pernoite/Alimentação_`;
 
-        const suggestedCount = document.getElementById('suggestedCount');
-        if (suggestedCount) suggestedCount.innerText = suggestedOvernights;
-        if (suggestedBadge) suggestedBadge.classList.remove('hidden');
-
-        const overnightInput = document.getElementById('overnightInput');
-        if (overnightInput) overnightInput.value = suggestedOvernights;
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => alert('Resumo copiado para o WhatsApp com sucesso! Cole na conversa.'));
+    } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('Resumo copiado para o WhatsApp com sucesso! Cole na conversa.');
     }
-
-    function adjustOvernights(delta) {
-        const input = document.getElementById('overnightInput');
-        if (!input) return;
-        let val = parseInt(input.value, 10) || 0;
-        input.value = Math.max(0, val + delta);
-    }
-
-    function calculate() {
-        const depVal = document.getElementById('departureDateTime').value;
-        const arrVal = document.getElementById('arrivalDateTime').value;
-        const overnightCount = parseInt(document.getElementById('overnightInput').value, 10) || 0;
-
-        if (!depVal || !arrVal) return;
-
-        const depDate = new Date(depVal);
-        const arrDate = new Date(arrVal);
-
-        if (arrDate <= depDate) {
-            alert("A data de chegada deve ser posterior à data de saída!");
-            return;
-        }
-
-        const formatCurrency = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-        const formatDate = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const formatTime = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-        const mealBreakdown = [];
-        let mealCount = 0;
-
-        let current = new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate());
-        const endDay = new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate());
-
-        while (current <= endDay) {
-            const dateStr = formatDate(current);
-            const isStart = current.getTime() === (new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate())).getTime();
-            const isEnd = current.getTime() === (new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate())).getTime();
-
-            if (isStart && isEnd) {
-                const depHour = depDate.getHours();
-                const arrHour = arrDate.getHours();
-                if (depHour <= 19 && arrHour >= 22) {
-                    mealCount++;
-                    mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (<= 19:00) e Chegada às ${formatTime(arrDate)} (>= 22:00)`, earned: true });
-                } else {
-                    mealBreakdown.push({ date: dateStr, reason: `Mesmo dia: Não atendeu janela de janta (Saída ${formatTime(depDate)} / Chegada ${formatTime(arrDate)})`, earned: false });
-                }
-            } else if (isStart) {
-                if (depDate.getHours() <= 19) {
-                    mealCount++;
-                    mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (<= 19:00)`, earned: true });
-                } else {
-                    mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (Após as 19:00)`, earned: false });
-                }
-            } else if (isEnd) {
-                if (arrDate.getHours() >= 22) {
-                    mealCount++;
-                    mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (>= 22:00)`, earned: true });
-                } else {
-                    mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (Antes das 22:00)`, earned: false });
-                }
-            } else {
-                mealCount++;
-                mealBreakdown.push({ date: dateStr, reason: `Dia intermediário completo em viagem`, earned: true });
-            }
-
-            current.setDate(current.getDate() + 1);
-        }
-
-        const mealSubtotal = mealCount * UNIT_VALUE;
-        const overnightSubtotal = overnightCount * UNIT_VALUE;
-        const grandTotal = mealSubtotal + overnightSubtotal;
-
-        const totalHours = (arrDate - depDate) / (1000 * 60 * 60);
-        const hInt = Math.floor(totalHours);
-        const mInt = Math.round((totalHours - hInt) * 60);
-
-        document.getElementById('mealTotalText').innerText = `${mealCount}x = ${formatCurrency(mealSubtotal)}`;
-        const listEl = document.getElementById('mealBreakdownList');
-        listEl.innerHTML = '';
-        mealBreakdown.forEach(item => {
-            const div = document.createElement('div');
-            div.className = "flex items-start space-x-1.5";
-            div.innerHTML = item.earned 
-                ? `<i class="fa-solid fa-circle-check text-emerald-500 mt-0.5"></i> <span><strong>${item.date}:</strong> ${item.reason}</span>`
-                : `<i class="fa-solid fa-circle-xmark text-slate-300 mt-0.5"></i> <span class="text-slate-400"><strong>${item.date}:</strong> ${item.reason}</span>`;
-            listEl.appendChild(div);
-        });
-
-        document.getElementById('overnightTotalText').innerText = `${overnightCount}x = ${formatCurrency(overnightSubtotal)}`;
-        document.getElementById('overnightBreakdownText').innerText = `${overnightCount} pernoite(s) confirmada(s) (${formatCurrency(UNIT_VALUE)} por descanso de 11h).`;
-        document.getElementById('grandTotalText').innerText = formatCurrency(grandTotal);
-
-        document.getElementById('resultsCard').classList.remove('hidden');
-
-        window.lastCalculationSummary = {
-            depFormatted: `${formatDate(depDate)} às ${formatTime(depDate)}`,
-            arrFormatted: `${formatDate(arrDate)} às ${formatTime(arrDate)}`,
-            durationText: `${hInt}h ${mInt}min`,
-            mealCount,
-            mealSub: mealSubtotal,
-            breakdown: mealBreakdown,
-            overnightCount,
-            overnightSub: overnightSubtotal,
-            total: grandTotal
-        };
-    }
-
-    function copyWhatsAppReport() {
-        const s = window.lastCalculationSummary;
-        if (!s) return;
-
-        const formatCurrency = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-        let text = `*RESUMO DE DIÁRIAS E REEMBOLSO*\n`;
-        text += `-----------------------------------\n`;
-        text += `🛫 *Saída:* ${s.depFormatted}\n`;
-        text += `🛬 *Chegada:* ${s.arrFormatted}\n`;
-        text += `⏱️ *Duração Total:* ${s.durationText}\n`;
-        text += `-----------------------------------\n\n`;
-
-        text += `🍽️ *Alimentação (Janta):* ${s.mealCount}x (${formatCurrency(s.mealSub)})\n`;
-        s.breakdown.forEach(item => {
-            if (item.earned) text += `   • ${item.date}: ${item.reason}\n`;
-        });
-
-        text += `\n🛌 *Pernoites (14h Jornada + 11h Descanso):* ${s.overnightCount}x (${formatCurrency(s.overnightSub)})\n`;
-        text += `-----------------------------------\n`;
-        text += `💰 *VALOR TOTAL:* ${formatCurrency(s.total)}\n`;
-        text += `-----------------------------------\n`;
-        text += `_Calculado via Calculadora de Pernoite/Alimentação_`;
-
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(text).then(() => alert('Resumo copiado com sucesso!'));
-        } else {
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            alert('Resumo copiado com sucesso!');
-        }
-    }
+}
