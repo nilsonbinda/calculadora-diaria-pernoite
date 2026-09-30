@@ -69,7 +69,6 @@ function renderOvernightFields(depDate, arrDate) {
     const container = document.getElementById('dynamicOvernightsContainer');
     container.innerHTML = '';
     
-    // CORREÇÃO: O loop agora começa no próprio dia da saída, sem pular 1 dia
     let current = new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate());
     let end = new Date(arrDate.getFullYear(), arrDate.getMonth(), arrDate.getDate());
     
@@ -133,12 +132,10 @@ function calculate() {
     const hInt = Math.floor(totalHours);
     const mInt = Math.round((totalHours - hInt) * 60);
 
-    // Preenche as informações do cabeçalho do Recibo
     document.getElementById('receiptDep').innerText = `${formatDate(depDate)} às ${formatTime(depDate)}`;
     document.getElementById('receiptArr').innerText = `${formatDate(arrDate)} às ${formatTime(arrDate)}`;
     document.getElementById('receiptDur').innerText = `${hInt}h ${mInt}min`;
 
-    // 1. CÁLCULO DE ALIMENTAÇÃO (JANTA)
     const mealBreakdown = [];
     let mealCount = 0;
 
@@ -153,34 +150,33 @@ function calculate() {
         if (isStart && isEnd) {
             const depHour = depDate.getHours();
             const arrHour = arrDate.getHours();
-            if (depHour <= 19 && arrHour >= 22) {
+            if (depHour <= 22 && arrHour >= 22) {
                 mealCount++;
-                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (<= 19h) e Chegada às ${formatTime(arrDate)} (>= 22h)`, earned: true });
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} e Chegada às ${formatTime(arrDate)} (Tem janta)`, earned: true });
             } else {
-                mealBreakdown.push({ date: dateStr, reason: `Não atendeu janela (Saída ${formatTime(depDate)} / Chegada ${formatTime(arrDate)})`, earned: false });
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} e Chegada às ${formatTime(arrDate)} (Não tem janta)`, earned: false });
             }
         } else if (isStart) {
-            if (depDate.getHours() <= 19) {
+            if (depDate.getHours() <= 22) {
                 mealCount++;
-                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (<= 19h)`, earned: true });
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (Tem janta)`, earned: true });
             } else {
-                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (Após 19h)`, earned: false });
+                mealBreakdown.push({ date: dateStr, reason: `Saída às ${formatTime(depDate)} (Não tem janta)`, earned: false });
             }
         } else if (isEnd) {
             if (arrDate.getHours() >= 22) {
                 mealCount++;
-                mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (>= 22h)`, earned: true });
+                mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (Tem janta)`, earned: true });
             } else {
-                mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (Antes das 22h)`, earned: false });
+                mealBreakdown.push({ date: dateStr, reason: `Chegada às ${formatTime(arrDate)} (Não tem janta)`, earned: false });
             }
         } else {
             mealCount++;
-            mealBreakdown.push({ date: dateStr, reason: `Dia completo em viagem`, earned: true });
+            mealBreakdown.push({ date: dateStr, reason: `Dia completo em viagem (Tem janta)`, earned: true });
         }
         currentMealDate.setDate(currentMealDate.getDate() + 1);
     }
 
-    // 2. CÁLCULO DE PERNOITES (Lido diretamente do DOM)
     let overnightCount = 0;
     const overnightBreakdown = [];
     const timeInputs = document.querySelectorAll('.overnight-time');
@@ -197,7 +193,6 @@ function calculate() {
     const overnightSubtotal = overnightCount * UNIT_VALUE;
     const grandTotal = mealSubtotal + overnightSubtotal;
 
-    // 3. RENDERIZAÇÃO DE RESULTADOS
     document.getElementById('mealTotalText').innerText = `${mealCount}x = ${formatCurrency(mealSubtotal)}`;
     const mealListEl = document.getElementById('mealBreakdownList');
     mealListEl.innerHTML = '';
@@ -228,20 +223,17 @@ function calculate() {
     }, 100);
 }
 
-// Nova função que captura o recibo e baixa em formato PNG
 function downloadReceipt() {
     const receiptElement = document.getElementById('receiptContent');
     const btn = document.getElementById('downloadBtn');
     const originalText = btn.innerHTML;
     
-    // Feedback visual de carregamento
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-2xl"></i><span>Gerando Imagem...</span>';
     btn.disabled = true;
 
-    // Atraso curto para permitir que o botão atualize antes de congelar a interface
     setTimeout(() => {
         html2canvas(receiptElement, { 
-            scale: 2, // Melhora a resolução para impressão/leitura no telemóvel
+            scale: 2, 
             backgroundColor: '#ffffff'
         }).then(canvas => {
             const link = document.createElement('a');
@@ -249,7 +241,6 @@ function downloadReceipt() {
             link.href = canvas.toDataURL('image/png');
             link.click();
             
-            // Restaura o botão
             btn.innerHTML = originalText;
             btn.disabled = false;
         }).catch(err => {

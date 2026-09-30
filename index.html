@@ -6,7 +6,6 @@
     <title>Calculadora de Pernoite e Alimentação</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Importação da biblioteca para gerar a imagem do recibo -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         tailwind.config = {
@@ -46,17 +45,6 @@
     </header>
 
     <main class="max-w-3xl w-full mx-auto px-4 pt-6 flex-grow space-y-6">
-
-        <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 sm:p-5 flex items-start space-x-3 shadow-sm" role="alert">
-            <i class="fa-solid fa-circle-info text-blue-600 text-xl mt-0.5 flex-shrink-0" aria-hidden="true"></i>
-            <div class="text-sm text-blue-900 leading-relaxed">
-                <p class="font-bold mb-1 text-base">Regras Vigentes (R$ 78,14/item):</p>
-                <ul class="list-disc list-inside space-y-1 text-blue-800">
-                    <li><strong>Janta:</strong> Saída $\le$ 19:00 | Chegada $\ge$ 22:00 | Dias intermediários completos.</li>
-                    <li><strong>Pernoite:</strong> Informe os dias com descanso $\ge$ 11h.</li>
-                </ul>
-            </div>
-        </div>
 
         <form id="calcForm" onsubmit="event.preventDefault(); calculate();" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -104,7 +92,6 @@
         </form>
 
         <div id="resultsCard" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all" aria-live="polite">
-            <!-- Esta div específica será "fotografada" pelo html2canvas -->
             <div id="receiptContent" class="bg-white">
                 <div class="bg-slate-900 text-white p-4 sm:p-5 border-b border-slate-800 flex justify-between items-center">
                     <h2 class="font-bold text-lg flex items-center">
@@ -113,7 +100,6 @@
                 </div>
 
                 <div class="p-5 sm:p-6 space-y-6 pb-2">
-                    <!-- Resumo da viagem para a imagem -->
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 space-y-1">
                         <p><i class="fa-solid fa-plane-departure w-5 text-center text-slate-400"></i> <strong>Saída:</strong> <span id="receiptDep"></span></p>
                         <p><i class="fa-solid fa-plane-arrival w-5 text-center text-slate-400"></i> <strong>Chegada:</strong> <span id="receiptArr"></span></p>
@@ -149,7 +135,6 @@
                 </div>
             </div>
 
-            <!-- Botão de Download isolado (não entra na imagem) -->
             <div class="p-5 sm:p-6 pt-4">
                 <button id="downloadBtn" onclick="downloadReceipt()" aria-label="Baixar Imagem do Recibo" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-4 px-4 rounded-xl shadow transition-all flex items-center justify-center space-x-3 text-base sm:text-lg focus:outline-none focus:ring-4 focus:ring-blue-400">
                     <i class="fa-solid fa-download text-2xl" aria-hidden="true"></i>
